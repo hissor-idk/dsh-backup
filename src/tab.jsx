@@ -94,6 +94,8 @@ export function BackupTab({ panel, t }) {
   const [encryptPassword, setEncryptPassword] = useState('');
   const [importPath, setImportPath] = useState('');
   const [importPassword, setImportPassword] = useState('');
+  // 恢复加密归档用的口令（仅内存态，绝不落盘）——此前恢复页漏了这个入口
+  const [restorePassword, setRestorePassword] = useState('');
   const [importPlan, setImportPlan] = useState(null);
   const [exportResult, setExportResult] = useState(null);
   const [disk, setDisk] = useState(null);
@@ -515,7 +517,7 @@ export function BackupTab({ panel, t }) {
     setSyncDeps(false);
     setBusy(`restore:${name}`);
     try {
-      const r = await panel.restore(name, true, types);
+      const r = await panel.restore(name, true, types, undefined, restorePassword.trim() || undefined);
       if (r.ok) {
         setBanner(null);
         setPending({
@@ -543,7 +545,8 @@ export function BackupTab({ panel, t }) {
     const withDeps = syncDeps;
     setPending(null);
     setSyncDeps(false);
-    void run(`restore:${target.name}`, () => panel.restore(target.name, false, target.merge ? target.types : undefined, withDeps)).then(reload);
+    const pwd = restorePassword.trim() || undefined;
+    void run(`restore:${target.name}`, () => panel.restore(target.name, false, target.merge ? target.types : undefined, withDeps, pwd).then((r) => { if (r && r.ok !== false) setRestorePassword(''); return r; })).then(reload);
   };
 
   // 确认弹窗打开时 Esc 取消；恢复执行中（busy）不响应，避免误关丢反馈。
@@ -672,7 +675,7 @@ export function BackupTab({ panel, t }) {
 
   const backupRow = (b) => (
     <li className="dsb-item" key={b.name}>
-      <span className="dsb-item-name" title={b.name}>{stampOf(b.name) ?? b.name}</span>
+      <span className="dsb-item-name" title={b.name}>{b.encrypted ? '🔒 ' : ''}{stampOf(b.name) ?? b.name}</span>
       <span className="dsb-item-meta">{mb(b.size, t)}</span>
       <span className="dsb-item-actions">
         <a href={downloadHref(b.name)} download={b.name}>{t('download')}</a>
@@ -857,6 +860,13 @@ export function BackupTab({ panel, t }) {
             <>
               <div className="dsb-card dsb-info">
                 <p className="dsb-info-text">{t('restoreExplainBody')}</p>
+                <div className="dsb-row" style={{ marginTop: '8px' }}>
+                  <label>
+                    <span className="dsb-item-meta">{t('restorePasswordLabel')}</span>
+                    <input type="password" autoComplete="off" placeholder={t('restorePasswordPlaceholder')} value={restorePassword} onChange={(e) => setRestorePassword(e.target.value)} />
+                  </label>
+                  <span className="dsb-hint">{t('restorePasswordHint')}</span>
+                </div>
               </div>
               <div className="dsb-card">
                 <h3 className="dsb-heading">
